@@ -58,12 +58,18 @@ def sophia_gate():
     data = request.get_json(silent=True) or {}
     path = data.get("path")
     transform = data.get("transform")
-    layer_depth = data.get("layer_depth", 1)
+    layer_depth_raw = data.get("layer_depth", 1)
 
     if not path:
         return jsonify({"error": "Missing path"}), 400
     if not transform:
         return jsonify({"error": "Missing transform"}), 400
+
+    try:
+        layer_depth = int(layer_depth_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "layer_depth must be an integer"}), 400
+
     if layer_depth not in (1, 2, 3):
         return jsonify({"error": "layer_depth must be 1, 2, or 3"}), 400
 
@@ -77,14 +83,13 @@ def sophia_gate():
         with open(path, "r") as f:
             original_content = f.read()
 
-    # Select the appropriate layer based on depth
+    # Select the appropriate layers based on depth
     depth_to_layers = {
         1: ["breath"],
         2: ["blood", "word"],
         3: ["sound", "flame"],
     }
     active_layer_names = depth_to_layers.get(layer_depth, ["breath"])
-    active_layer = layers_map[active_layer_names[0]]
 
     # Construct the signal from file content + transform
     signal = {
@@ -94,8 +99,11 @@ def sophia_gate():
         "depth": layer_depth,
     }
 
-    # Process through the layer
-    layer_result = active_layer.process(signal)
+    # Process through all layers at this depth (not just the first)
+    layer_results = []
+    for name in active_layer_names:
+        layer_results.append(layers_map[name].process(signal))
+    layer_result = layer_results[-1]
 
     # Pass through an XOR gate (branching point for the transform)
     xor_gate = gates_map["xor"]
@@ -116,8 +124,17 @@ def sophia_gate():
         transformed_content = transform
 
     # Write the result back (bidirectional — the gate changed the file)
-    with open(path, "w") as f:
-        f.write(transformed_content)
+    try:
+        with open(path, "w") as f:
+            f.write(transformed_content)
+    except OSError as e:
+        return jsonify({
+            "error": "Failed to write transformed content",
+            "details": str(e),
+            "entropic_residue": {"content": original_content},
+            "fold_back": False,
+            "gate_changed": False,
+        }), 500
 
     return jsonify({
         "coherent": {"content": transformed_content},
@@ -128,6 +145,7 @@ def sophia_gate():
         "layer": layer_result["layer"],
         "depth": layer_result["depth"],
         "interference_pattern": gate_result["interference_pattern"],
+        "layers_processed": [r["layer"] for r in layer_results],
     })
 
 
