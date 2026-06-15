@@ -7,6 +7,7 @@ New endpoints: /sophia/gate, /sophia/coherence, /sophia/coalesce, /sophia/groupc
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
@@ -112,6 +113,9 @@ def sophia_gate():
     path = data.get("path")
     gate_type = data.get("gate_type", "NOR").upper()
 
+    if gate_type not in ("NOR", "XOR"):
+        return jsonify({"error": "Invalid gate_type; must be NOR or XOR"}), 400
+
     if not path or not os.path.isfile(path):
         return jsonify({"error": "Invalid path"}), 400
 
@@ -125,9 +129,9 @@ def sophia_gate():
     gate = nor_gate if gate_type == "NOR" else xor_gate
     result = gate.pass_through(signal)
 
-    coherent_str = str(result.get("coherent", ""))
+    coherent = result.get("coherent", {})
     with open(path, "w") as f:
-        f.write(coherent_str)
+        json.dump(coherent, f)
 
     return jsonify({
         "coherent": result["coherent"],
@@ -191,7 +195,7 @@ def sophia_groupchat():
     signal = {"input": 0.5}
     root_layer.phase_cycle(signal)
 
-    gc = build_any_any_groupchat(layer_depth=depth)
+    gc = build_any_any_groupchat(layer_depth=depth, narrator_instance=narrator)
     thread = gc["run"](message)
 
     return jsonify({"frame_id": frame_id, "thread": thread})

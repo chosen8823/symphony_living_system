@@ -21,6 +21,9 @@ from agents.pieces_agent import PiecesAgent
 logger = logging.getLogger(__name__)
 
 MAX_DEPTH = 3
+MAX_NODES_PER_REQUEST = 128
+
+_sub_groupchat_cache: Dict[int, Dict] = {}
 
 
 def _select_next_speaker(
@@ -54,14 +57,33 @@ def _select_next_speaker(
     return best_name
 
 
-def build_any_any_groupchat(layer_depth: int = 1) -> Dict:
+def _get_sub_groupchat(depth: int) -> Dict:
+    """Return a cached sub-groupchat instance for the given depth."""
+    cached = _sub_groupchat_cache.get(depth)
+    if cached is None:
+        cached = build_any_any_groupchat(depth)
+        _sub_groupchat_cache[depth] = cached
+    return cached
+
+
+def build_any_any_groupchat(
+    layer_depth: int = 1,
+    narrator_instance: Optional[object] = None,
+) -> Dict:
     """Build a coherence-driven GroupChat at the given fractal depth.
 
     Returns a dict containing the agent instances and a run() function.
     If pyautogen is available, wraps agents in a SelectorGroupChat.
     Falls back to a lightweight local loop otherwise.
+
+    Args:
+        layer_depth: Fractal recursion depth (1-3).
+        narrator_instance: Optional shared Narrator to bind to NarratorAgent.
     """
-    narrator = NarratorAgent()
+    narrator_agent = NarratorAgent()
+    if narrator_instance is not None:
+        narrator_agent.bind_narrator(narrator_instance)  # type: ignore[arg-type]
+
     aeon = AEONAgent()
     ghost = GhostAgent()
     notebook = NotebookAgent()
@@ -69,7 +91,7 @@ def build_any_any_groupchat(layer_depth: int = 1) -> Dict:
 
     agent_instances: Dict[str, object] = {
         AEONAgent.NAME: aeon,
-        NarratorAgent.NAME: narrator,
+        NarratorAgent.NAME: narrator_agent,
         GhostAgent.NAME: ghost,
         PiecesAgent.NAME: pieces,
         NotebookAgent.NAME: notebook,
@@ -116,8 +138,9 @@ def build_any_any_groupchat(layer_depth: int = 1) -> Dict:
             notebook.collect(speaker_name, reply)
             thread.append({"agent": speaker_name, "message": reply})
 
-            if layer_depth < MAX_DEPTH:
-                sub_thread = build_any_any_groupchat(layer_depth + 1)["run"](reply)
+            if layer_depth < MAX_DEPTH and len(thread) < MAX_NODES_PER_REQUEST:
+                sub_gc = _get_sub_groupchat(layer_depth + 1)
+                sub_thread = sub_gc["run"](reply)
                 thread.append({"agent": f"{speaker_name}@depth{layer_depth + 1}", "sub_thread": sub_thread})  # type: ignore[dict-item]
 
         return thread

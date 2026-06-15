@@ -81,7 +81,7 @@ The feedback loop is self-similar to the process: the 5th layer's output feeds b
 
 ## 5. The Fractal Gate Structure
 
-Each gate is **reciprocal** (changes the signal AND is changed by it), **self-similar** (same structure at every depth), **cymatic** (stores interference patterns), with **minimum 3 depths**.
+Each gate is **reciprocal** (changes the signal AND is changed by it), **self-similar** (same structure at every depth), **cymatic** (stores interference patterns), with a **minimum of 3 depths**.
 
 ### Gate operation:
 1. Read incoming signal

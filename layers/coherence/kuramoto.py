@@ -9,6 +9,8 @@ import numpy as np
 class KuramotoOscillator:
     """Kuramoto-model oscillator bank with adaptive coupling."""
 
+    K_MAX = 5.0
+
     def __init__(self, N: int = 8, K: float = 0.5):
         self.N = N
         self.K = K
@@ -48,9 +50,12 @@ class KuramotoOscillator:
         return float(np.abs(np.sum(np.exp(1j * self.phases))) / self.N)
 
     def adapt_K(self) -> None:
-        """Adaptive coupling: increase K when coherent, decrease when disordered."""
+        """Adaptive coupling: increase K when coherent, decrease when disordered.
+
+        K is clamped to [0, K_MAX] to prevent runaway growth.
+        """
         r = self.order_parameter()
         if r > 0.8:
-            self.K += 0.05
+            self.K = min(self.K_MAX, self.K + 0.05)
         elif r < 0.3:
             self.K = max(0.0, self.K - 0.02)
