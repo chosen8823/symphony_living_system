@@ -1,0 +1,6 @@
+flask
+numpy
+scipy
+pyautogen
+requests
+pyyaml
